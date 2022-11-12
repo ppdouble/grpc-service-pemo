@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+option java_package = "nd.pemo.grpcsample";
+option java_outer_classname = "User";
+
+//service
+
+service user {
+  rpc login(LoginRequest) returns (APIResponse);
+
+  rpc logout(Empty) returns (LogoutResponse);
+
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message APIResponse {
+  string responsemessage = 1;
+  int32 responseCode = 2;
+}
+
+// empty for logout request
+message Empty {
+}
+
+// specific response for logout
+message LogoutResponse {
+  string logoutmessage = 1;
+  int32 responseCode = 2;
+}
