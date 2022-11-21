@@ -9,7 +9,7 @@ import java.io.IOException;
 public class GRPCServer {
 
     public static void main(String args[]) {
-        Server server = ServerBuilder.forPort(9901).addService(
+        Server server = ServerBuilder.forPort(9903).addService(
                 new UserService()
         ).build();
 
