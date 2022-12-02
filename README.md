@@ -158,6 +158,28 @@ testing with BloomRPC Client App (It's like postman tool.)
  - sending request to service (e.g. interface) including login api and logout api with corresponding message format (the concepts, service, api, interface are similar in this context)
  
 
+## 7. lookupMethod
+
+In `grpc-core-1.27.0.jar!/io/grpc/internal/ServerImpl.class`
+
+```java
+      final class MethodLookup extends ContextRunnable {
+        MethodLookup() {
+            super(context);
+        }
+    ...
+        private void runInternal() {
+          ServerMethodDefinition<?, ?> wrapMethod;
+          ServerCallParameters<?, ?> callParams;
+          try {
+            ServerMethodDefinition<?, ?> method = registry.lookupMethod(methodName);
+            if (method == null) {
+              method = fallbackRegistry.lookupMethod(methodName, stream.getAuthority());
+            }
+```
+
+When the client connect server successfully, the server will look up the corresponding 
+service which the client requests.
 
 ## Ref
 
