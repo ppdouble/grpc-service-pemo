@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+option java_package = "nd.pemo.grpcsample";
+option java_outer_classname = "Custom";
+
+//service
+
+service custom {
+
+}
