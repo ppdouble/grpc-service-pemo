@@ -181,6 +181,169 @@ In `grpc-core-1.27.0.jar!/io/grpc/internal/ServerImpl.class`
 When the client connect server successfully, the server will look up the corresponding 
 service which the client requests.
 
+## 8. An example
+
+### sample 1 envoy
+#### proto
+
+`api-0.1.35.jar!/envoy/service/discovery/v3/ads.proto`
+
+```protobuf
+  rpc StreamAggregatedResources(stream DiscoveryRequest) returns (stream DiscoveryResponse) {
+  }
+```
+
+#### Generated codes
+`api-0.1.35.jar!/io/envoyproxy/envoy/service/discovery/v3/AggregatedDiscoveryService.class`
+
+```java
+
+/**
+ * <pre>
+ * See https://github.com/envoyproxy/envoy-api#apis for a description of the role of
+ * ADS and how it is intended to be used by a management server. ADS requests
+ * have the same structure as their singleton xDS counterparts, but can
+ * multiplex many resource types on a single stream. The type_url in the
+ * DiscoveryRequest/DiscoveryResponse provides sufficient information to recover
+ * the multiplexed singleton APIs at the Envoy instance and management server.
+ * </pre>
+ */
+public static abstract class AggregatedDiscoveryServiceImplBase implements io.grpc.BindableService {
+
+    /**
+     * <pre>
+     * This is a gRPC-only API.
+     * </pre>
+     */
+    public io.grpc.stub.StreamObserver<io.envoyproxy.envoy.service.discovery.v3.DiscoveryRequest> streamAggregatedResources(
+            io.grpc.stub.StreamObserver<io.envoyproxy.envoy.service.discovery.v3.DiscoveryResponse> responseObserver) {
+        return io.grpc.stub.ServerCalls.asyncUnimplementedStreamingCall(getStreamAggregatedResourcesMethod(), responseObserver);
+    }
+
+```
+
+#### Implementing service
+
+```java
+  /**
+   * Returns an ADS implementation that uses this server's {@link ConfigWatcher}.
+   */
+  public AggregatedDiscoveryServiceImplBase getAggregatedDiscoveryServiceImpl() {
+    return new AggregatedDiscoveryServiceImplBase() {
+      @Override
+      public StreamObserver<DiscoveryRequest> streamAggregatedResources(
+          StreamObserver<DiscoveryResponse> responseObserver) {
+
+        return createRequestHandler(responseObserver, true, ANY_TYPE_URL);
+      }
+      
+```
+
+### sample 2 RouteGuide
+
+#### proto
+[bi-direction stream](https://github.com/grpc/grpc-java/blob/v1.48.1/examples/src/main/proto/route_guide.proto#L51)
+```protobuf
+rpc RouteChat(stream RouteNote) returns (stream RouteNote) {}
+```
+
+#### Implementing
+```java
+
+  private static class RouteGuideService extends RouteGuideGrpc.RouteGuideImplBase {
+
+      ...
+
+
+      /**
+       * Gets a stream of points, and responds with statistics about the "trip": number of points,
+       * number of known features visited, total distance traveled, and total time spent.
+       *
+       * @param responseObserver an observer to receive the response summary.
+       * @return an observer to receive the requested route points.
+       */
+      @Override
+      public StreamObserver<Point> recordRoute(final StreamObserver<RouteSummary> responseObserver) {
+          return new StreamObserver<Point>() {
+              int pointCount;
+              int featureCount;
+              int distance;
+              Point previous;
+              final long startTime = System.nanoTime();
+
+              @Override
+              public void onNext(Point point) {
+                  pointCount++;
+                  if (RouteGuideUtil.exists(checkFeature(point))) {
+                      featureCount++;
+                  }
+                  // For each point after the first, add the incremental distance from the previous point to
+                  // the total distance value.
+                  if (previous != null) {
+                      distance += calcDistance(previous, point);
+                  }
+                  previous = point;
+              }
+
+              @Override
+              public void onError(Throwable t) {
+                  logger.log(Level.WARNING, "recordRoute cancelled");
+              }
+
+              @Override
+              public void onCompleted() {
+                  long seconds = NANOSECONDS.toSeconds(System.nanoTime() - startTime);
+                  responseObserver.onNext(RouteSummary.newBuilder().setPointCount(pointCount)
+                          .setFeatureCount(featureCount).setDistance(distance)
+                          .setElapsedTime((int) seconds).build());
+                  responseObserver.onCompleted();
+              }
+          };
+      }
+
+```
+
+## CallStreamObserver
+
+```java
+
+/**
+ * A refinement of StreamObserver provided by the GRPC runtime to the application (the client or
+ * the server) that allows for more complex interactions with call behavior.
+ *
+ * <p>In any call there are logically four {@link StreamObserver} implementations:
+ * <ul>
+ *   <li>'inbound', client-side - which the GRPC runtime calls when it receives messages from
+ *   the server. This is implemented by the client application and passed into a service method
+ *   on a stub object.
+ *   </li>
+ *   <li>'outbound', client-side - which the GRPC runtime provides to the client application and the
+ *   client uses this {@code StreamObserver} to send messages to the server.
+ *   </li>
+ *   <li>'inbound', server-side - which the GRPC runtime calls when it receives messages from
+ *   the client. This is implemented by the server application and returned from service
+ *   implementations of client-side streaming and bidirectional streaming methods.
+ *   </li>
+ *   <li>'outbound', server-side - which the GRPC runtime provides to the server application and
+ *   the server uses this {@code StreamObserver} to send messages (responses) to the client.
+ *   </li>
+ * </ul>
+ *
+ * <p>Implementations of this class represent the 'outbound' message streams. The client-side
+ * one is {@link ClientCallStreamObserver} and the service-side one is
+ * {@link ServerCallStreamObserver}.
+ *
+ * <p>Like {@code StreamObserver}, implementations are not required to be thread-safe; if multiple
+ * threads will be writing to an instance concurrently, the application must synchronize its calls.
+ *
+ * <p>DO NOT MOCK: The API is too complex to reliably mock. Use InProcessChannelBuilder to create
+ * "real" RPCs suitable for testing.
+ *
+ * @param <V> type of outbound message.
+ */
+@ExperimentalApi("https://github.com/grpc/grpc-java/issues/8499")
+```
+
 ## Ref
 
 [grpc server cpp demo](https://github.com/ppdouble/grpc-cpp-server-sample)
